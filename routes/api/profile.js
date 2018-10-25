@@ -6,6 +6,7 @@ const passport = require('passport');
 //Load profile model
 const Profile = require('../../models/Profile');
 const User = require('../../models/User');
+const validateProfileInput = require('../../validation/profile');
 
 
 //@route  GET api/classes
@@ -14,6 +15,7 @@ const User = require('../../models/User');
 router.get('/', passport.authenticate('jwt',{session:false}), (req,res)=>{
     const errors = {};
     Profile.findOne({user: req.user.id })
+    .populate('users','schoolName') //sending user id and schoolName with profile json
     .then(profile =>{
         if(!profile){
             errors.noprofile = "нет такого профиля"
@@ -28,9 +30,18 @@ router.get('/', passport.authenticate('jwt',{session:false}), (req,res)=>{
 //@desc  create or edit user's profile
 //@access private
 router.post('/', passport.authenticate('jwt',{session:false}), (req,res)=>{
+
+    const {errors,isValid} = validateProfileInput(req.body);
+
+    //check validation
+    if(!isValid){
+        //return errors
+        return res.status(400).json(errors);
+    }
+
     //get fields
-    const profileFields = {};
-    profileFields = req.user.id;
+    let profileFields = {};
+    profileFields.user = req.user.id;
     if(req.body.schoolName) profileFields.schoolName = req.body.schoolName;
     if(req.body.lessonsPerDay) profileFields.lessonsPerDay = req.body.lessonsPerDay;
     if(req.body.daysPerWeek) profileFields.daysPerWeek = req.body.daysPerWeek;
@@ -43,18 +54,11 @@ router.post('/', passport.authenticate('jwt',{session:false}), (req,res)=>{
                     .then(profile=>res.json(profile));
                 }else{ 
                     //create
-                    //first check if such a schoolname is already there
-                    Profile.findOne({schoolName:profileFields.schoolName})
-                        .then(profile=>{
-                            if(profile){
-                                errors.schoolName = 'такая школа уже есть в базе'
-                            }
-
-                            //save profile
-                            new Profile(profileFields).save().then(profile=>res.json(profile));
-                        })
+                     //save profile
+                     new Profile(profileFields).save().then(profile=>res.json(profile));
                 }
             })
+            .catch(err=>console.log(err));
 });
 
 
